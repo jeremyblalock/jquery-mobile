@@ -33,12 +33,12 @@ $.widget( "mobile.textinput", $.mobile.widget, {
 		focusedEl = input;
 
 		// XXX: Temporary workaround for issue 785 (Apple bug 8910589).
-		//      Turn off autocorrect and autocomplete on non-iOS 5 devices
-		//      since the popup they use can't be dismissed by the user. Note
-		//      that we test for the presence of the feature by looking for
-		//      the autocorrect property on the input element. We currently
-		//      have no test for iOS 5 or newer so we're temporarily using
-		//      the touchOverflow support flag for jQM 1.0. Yes, I feel dirty. - jblas
+		//	  Turn off autocorrect and autocomplete on non-iOS 5 devices
+		//	  since the popup they use can't be dismissed by the user. Note
+		//	  that we test for the presence of the feature by looking for
+		//	  the autocorrect property on the input element. We currently
+		//	  have no test for iOS 5 or newer so we're temporarily using
+		//	  the touchOverflow support flag for jQM 1.0. Yes, I feel dirty. - jblas
 		if ( typeof input[0].autocorrect !== "undefined" && !$.support.touchOverflow ) {
 			// Set the attribute instead of the property just in case there
 			// is code that attempts to make modifications via HTML.
@@ -91,31 +91,66 @@ $.widget( "mobile.textinput", $.mobile.widget, {
 			});
 
 		// Autogrow
-		if ( input.is( "textarea" ) ) {
-			var extraLineHeight = 15,
-				keyupTimeoutBuffer = 100,
-				keyup = function() {
-					var scrollHeight = input[ 0 ].scrollHeight,
-						clientHeight = input[ 0 ].clientHeight;
-
-					if ( clientHeight < scrollHeight ) {
-						input.css({
-							height: (scrollHeight + extraLineHeight)
-						});
-					}
-				},
-				keyupTimeout;
-
-			input.keyup(function() {
-				clearTimeout( keyupTimeout );
-				keyupTimeout = setTimeout( keyup, keyupTimeoutBuffer );
-			});
-
-			// Issue 509: the browser is not giving scrollHeight properly until after the document
-			// is ready.
-			if ($.trim(input.text())) {
-				$(keyup);
+		// Modified from previous implementation. Now supports cutting/pasting, and holding down keys.
+		function checkTextarea() {
+			var el = currEl;
+			var minHeight = el.attr( "data-height" );
+			if (minHeight == undefined) {
+				minHeight = el.innerHeight()
+				el.attr( "data-height", minHeight);
 			}
+			$( "html" ).append( '<xmp id="testbed" style="position: fixed; border: 1px solid #f00; opacity: 0; top: ' + window.innerHeight + 'px">'
+				+ (el.val()) + "</xmp>" );
+			$( "#testbed" ).html( el.val().replace( /([\n\r])/g, "$1=" ));
+			$( "#testbed" ).css({
+					wordWrap: "break-word",
+					backgroundColor: "#faa",
+					paddingTop: el.css( "padding-top" ),
+					paddingRight: el.css( "padding-right" ),
+					paddingBottom: el.css( "padding-bottom" ),
+					paddingLeft: el.css( "padding-left" ),
+					fontFamily: el.css( "font-family" ),
+					fontSize: el.css( "font-size" ),
+					lineHeight: el.css("line-height"),
+					width: el.css( "width" ),
+					display: "block"
+				})
+			$( "textarea" ).css( "overflow", "hidden" );
+			var newHeight = $( "#testbed" ).innerHeight();
+			if ( newHeight < minHeight ) {
+				newHeight = minHeight;
+			}
+			$( "textarea" ).css({
+				height: newHeight
+			})
+		}
+		var numKeysPressed = 0;
+		var timerChecker;
+		var currEl;
+
+		if ( input.is( "textarea" ) ) {
+			input.blur(function() {
+				keysPressed = 0;
+				clearInterval(timerChecker);
+				checkTextarea();
+			})
+			input.keydown(function(e) {
+				numKeysPressed += 1;
+				if (numKeysPressed == 1) {
+					timerChecker = setInterval(function() { checkTextarea(); }, 20);
+					currEl = $(this);
+				}
+				setTimeout(function() { checkTextarea(); }, 0)
+			})
+			input.keyup(function(e) {
+				numKeysPressed -= 1;
+				if (numKeysPressed < 0)
+					numKeysPressed = 0;
+				if (numKeysPressed == 0) {
+					clearInterval(timerChecker);
+				}
+				checkTextarea();
+			})
 		}
 	},
 
@@ -136,3 +171,4 @@ $( document ).bind( "pagecreate create", function( e ){
 });
 
 })( jQuery );
+
